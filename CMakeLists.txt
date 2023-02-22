@@ -22,7 +22,7 @@ enable_testing()
 add_executable(
         hello_test
         src/hello_test.cc
-)
+        src/backtrack.h)
 target_link_libraries(
         hello_test
         GTest::gtest_main
