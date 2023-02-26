@@ -1,1 +1,5 @@
 ﻿cmake-build-debug
+cmake-build-debug-coverage
+*/**/*.DS_Store
+src/.DS_Store
+.DS_Store
