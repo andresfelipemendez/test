@@ -5,7 +5,7 @@
 std::string input = R"(11
 in inee
 eedane da
-xampl  nexamp
+xampl nexamp
 es les
 tri tringtha
 ngtha tha
@@ -43,7 +43,6 @@ TEST(processInput, SplittInputGroups) {
     auto processedInput = processInput(input);
     EXPECT_EQ(processedInput.size(), 5);
     EXPECT_EQ(processedInput[0].size(), 11);
-
 }
 
 TEST(processInput, SplittInputString) {
@@ -62,12 +61,17 @@ TEST(solveEmilPuzzle, solveFirstCase) {
     EXPECT_EQ(solve(pairGroup), "hi");
 }
 
+TEST(solveEmilPuzzle, solveSecondCase) {
+    auto pairGroup = processInput(input)[1];
+    EXPECT_EQ(solve(pairGroup), "dearalanhowareyou");
+}
+
 TEST(solveEmilPuzzle, getCandidates) {
     auto state = std::vector<int> {};
     auto listofpairs = std::vector<std::pair<std::string,std::string>> {
             /*0*/{"in", "inee"},
             /*1*/{"eedane", "da"},
-            /*2*/{"xampl", " nexamp"},
+            /*2*/{"xampl", "nexamp"},
             /*3*/{"es", "les"},
             /*4*/{"tri", "tringtha"},
             /*5*/{"ngtha", "tha"},
@@ -84,6 +88,10 @@ TEST(solveEmilPuzzle, getCandidates) {
 }
 
 TEST(solveEmilPuzzle, compareSubsetString) {
-    bool res = compareSubsetString("ip", "in");
-    EXPECT_FALSE(res);
+    EXPECT_FALSE(compareSubsetString("ip", "in"));
+    EXPECT_FALSE(compareSubsetString("xampl", " nexamp"));
+}
+
+TEST(solveEmilPuzzle, prune) {
+
 }

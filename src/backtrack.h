@@ -69,7 +69,6 @@ std::vector<int> prune(const std::vector<int>& potentialCandidates, const std::v
         }
     }
 
-
     return candidates;
 }
 
@@ -124,7 +123,6 @@ void search(std::vector<int>& state, std::vector<std::vector<int>> &solutions, c
         state.pop_back();
     }
 }
-
 
 std::string solve(const ListOfPairs& listOfPairs) {
     std::vector<std::vector<int>> solutions {};
