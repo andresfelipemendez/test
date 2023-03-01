@@ -5,10 +5,10 @@
 #include <algorithm>
 #include <sstream>
 #include <numeric>
+#include <set>
 
 struct State{
-    std::vector<int> current;
-    std::vector<int> discarded;
+    std::set<int> current;
 };
 
 using ListOfPairs = std::vector<std::pair<std::string,std::string>>;
@@ -97,12 +97,9 @@ std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
         return candidates;
     }
 
-    std::vector<int> potentialCandidates, a(listOfPairs.size());
+    std::vector<int> potentialCandidates;
+    for (int i = 0; i < listOfPairs.size(); ++i)
     {
-        
-        std::iota(a.begin(), a.end(), 0);
-    }
-    for(int i : a) {
         auto it = std::find(state.current.begin(),state.current.end(),i);
         if(it == state.current.end()){
             potentialCandidates.emplace_back(i);
@@ -110,24 +107,7 @@ std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
     }
 
     candidates = prune(potentialCandidates, state, listOfPairs);
-    // save in state.discarded the elements that were pruned,
-    state.discarded = potentialCandidates;
-    std::vector<int> v_intersection;
-    std::set_difference(
-            potentialCandidates.begin(),
-            potentialCandidates.end(),
-            candidates.begin(),
-            candidates.end(),
-            std::back_inserter(v_intersection)
-    );
-    std::sort(state.discarded.begin(), state.discarded.end());
-    std::sort(v_intersection.begin(), v_intersection.end());
 
-    if(state.discarded == v_intersection) {
-        return {};
-    }
-
-    state.discarded = v_intersection;
     return candidates;
 }
 
@@ -140,9 +120,9 @@ void search(State& state, std::vector<State> &solutions, const ListOfPairs& list
 
     auto candidates = getCandidates(state, listOfPairs);
     for(auto& candidate : candidates){
-        state.current.emplace_back(candidate);
+        state.current.insert(candidate);
         search(state, solutions, listOfPairs);
-        state.current.pop_back();
+        state.current.erase(candidate);
     }
 }
 
