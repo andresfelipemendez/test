@@ -6,6 +6,7 @@
 #include <sstream>
 #include <numeric>
 #include <set>
+#include <pthread.h>
 
 struct State{
     std::vector<int> current;
@@ -111,6 +112,37 @@ std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
     return candidates;
 }
 
+void* searchHelper(void* args) {
+    auto* params = static_cast<std::tuple<State, std::vector<State>, const ListOfPairs*>*>(args);
+    auto state = std::get<0>(*params);
+    auto& solutions = std::get<1>(*params);
+    auto& listOfPairs = *std::get<2>(*params);
+
+    if (isValidState(state, listOfPairs)) {
+        solutions.emplace_back(state);
+        pthread_exit(NULL);
+    }
+
+    auto candidates = getCandidates(state, listOfPairs);
+
+    std::vector<pthread_t> threads(candidates.size());
+
+    int i = 0;
+    for (auto& candidate : candidates) {
+        auto newState = state;
+        newState.current.push_back(candidate);
+
+        auto* args = new std::tuple<State, std::vector<State>, const ListOfPairs*>{ newState, solutions, &listOfPairs };
+        pthread_create(&threads[i++], NULL, searchHelper, args);
+    }
+
+    for (auto& thread : threads) {
+        pthread_join(thread, NULL);
+    }
+
+    pthread_exit(NULL);
+}
+
 void search(State& state, std::vector<State> &solutions, const ListOfPairs& listOfPairs) {
     
     if(isValidState(state, listOfPairs)){
@@ -131,7 +163,12 @@ std::string solve(const ListOfPairs& listOfPairs) {
     std::vector<State> solutions {};
     State state;
 
-    search(state, solutions,listOfPairs);
+    auto* args = new std::tuple<State, std::vector<State>, const ListOfPairs*>{ state, solutions, &listOfPairs };
+    pthread_t thread;
+    pthread_create(&thread, NULL, searchHelper, args);
+    pthread_join(thread, NULL);
+
+    //search(state, solutions,listOfPairs);
     if (solutions.empty()){
         return "IMPOSSIBLE";
     }
