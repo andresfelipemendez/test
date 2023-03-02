@@ -8,7 +8,7 @@
 #include <set>
 
 struct State{
-    std::set<int> current;
+    std::vector<int> current;
 };
 
 using ListOfPairs = std::vector<std::pair<std::string,std::string>>;

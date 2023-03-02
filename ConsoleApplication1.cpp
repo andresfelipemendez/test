@@ -7,6 +7,7 @@
 #include <sstream>
 #include <numeric>
 #include <set>
+#include <execution>
 
 struct State {
     std::vector<int> current;
@@ -114,7 +115,7 @@ std::set<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
     return candidates;
 }
 
-void search(State& state, std::vector<State>& solutions, const ListOfPairs& listOfPairs) {
+void search(State state, std::vector<State>& solutions, const ListOfPairs& listOfPairs) {
 
     if (isValidState(state, listOfPairs)) {
         solutions.emplace_back(state);
@@ -122,11 +123,11 @@ void search(State& state, std::vector<State>& solutions, const ListOfPairs& list
     }
 
     auto candidates = getCandidates(state, listOfPairs);
-    for (auto& candidate : candidates) {
+    std::for_each(std::execution::par, candidates.begin(), candidates.end(), [&](int candidate) {
         state.current.push_back(candidate);
         search(state, solutions, listOfPairs);
         state.current.pop_back();
-    }
+    });
 }
 
 std::string solve(const ListOfPairs& listOfPairs) {
@@ -159,8 +160,6 @@ std::string solve(const ListOfPairs& listOfPairs) {
     return concatenatedSolutions[0];
 }
 
-
-
 std::vector<std::string> solveEmilPuzzle(const std::vector<std::vector<std::pair<std::string, std::string>>>& processedInput) {
     std::vector<std::string> solutions;
 
@@ -179,26 +178,22 @@ int main(int argc, char** argv) {
     std::string line;
     auto it = listOfGroupsOfPairs.begin();
     int numberOfPairs = 0;
-    std::ifstream myfile("sample.txt");
-    if (myfile.is_open())
-    {
-        while (std::getline(myfile, line))
-        {
-            if (numberOfPairs == 0 && !line.empty()) {
-                try {
-                    numberOfPairs = std::stoi(line);
-                }
-                catch (std::invalid_argument const& ex) {
-                    break;
-                }
-                listOfGroupsOfPairs.emplace_back();
-                it = listOfGroupsOfPairs.end() - 1;
+    while (std::cin) {
+        std::getline(std::cin, line);
+        if (numberOfPairs == 0 && !line.empty()) {
+            try {
+                numberOfPairs = std::stoi(line);
             }
-            else if (!line.empty()) {
-                auto pair = splitString(line, ' ');
-                it->emplace_back(pair);
-                numberOfPairs--;
+            catch (std::invalid_argument const& ex) {
+                break;
             }
+            listOfGroupsOfPairs.emplace_back();
+            it = listOfGroupsOfPairs.end() - 1;
+        }
+        else if (!line.empty()) {
+            auto pair = splitString(line, ' ');
+            it->emplace_back(pair);
+            numberOfPairs--;
         }
     }
 
