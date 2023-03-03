@@ -5,14 +5,17 @@
 #include <algorithm>
 #include <sstream>
 #include <numeric>
-#include <set>
-#include <pthread.h>
+#include <future>
+#include <thread>
+#include <execution>
 
 struct State{
     std::vector<int> current;
 };
 
 using ListOfPairs = std::vector<std::pair<std::string,std::string>>;
+
+std::recursive_mutex mtx;
 
 std::pair<std::string,std::string> splitString(const std::string& input, char delimiter){
     auto pos = input.find(delimiter);
@@ -98,9 +101,11 @@ std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
         return candidates;
     }
 
-    std::vector<int> potentialCandidates;
-    for (int i = 0; i < listOfPairs.size(); ++i)
-    {
+    std::vector<int> potentialCandidates, a(listOfPairs.size());
+
+    std::iota(a.begin(), a.end(), 0);
+
+    for(int i : a) {
         auto it = std::find(state.current.begin(),state.current.end(),i);
         if(it == state.current.end()){
             potentialCandidates.emplace_back(i);
@@ -112,76 +117,40 @@ std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
     return candidates;
 }
 
-void* searchHelper(void* args) {
-    auto* params = static_cast<std::tuple<State, std::vector<State>, const ListOfPairs*>*>(args);
-    auto state = std::get<0>(*params);
-    auto& solutions = std::get<1>(*params);
-    auto& listOfPairs = *std::get<2>(*params);
+State search(State state, std::vector<State> &solutions, const ListOfPairs& listOfPairs) {
 
-    if (isValidState(state, listOfPairs)) {
-        solutions.emplace_back(state);
-        pthread_exit(NULL);
-    }
-
-    auto candidates = getCandidates(state, listOfPairs);
-
-    std::vector<pthread_t> threads(candidates.size());
-
-    int i = 0;
-    for (auto& candidate : candidates) {
-        auto newState = state;
-        newState.current.push_back(candidate);
-
-        auto* args = new std::tuple<State, std::vector<State>, const ListOfPairs*>{ newState, solutions, &listOfPairs };
-        pthread_create(&threads[i++], NULL, searchHelper, args);
-    }
-
-    for (auto& thread : threads) {
-        pthread_join(thread, NULL);
-    }
-
-    pthread_exit(NULL);
-}
-
-void search(State& state, std::vector<State> &solutions, const ListOfPairs& listOfPairs) {
-    
     if(isValidState(state, listOfPairs)){
-        solutions.emplace_back(state);
-        return;
+        return state;
     }
 
     auto candidates = getCandidates(state, listOfPairs);
+    std::vector<std::future<void>> futures;
     for(auto& candidate : candidates){
-        state.current.insert(candidate);
+
+        state.current.push_back(candidate);
         search(state, solutions, listOfPairs);
-        state.current.erase(candidate);
+        state.current.pop_back();
     }
+
 }
 
 std::string solve(const ListOfPairs& listOfPairs) {
-    
+
     std::vector<State> solutions {};
     State state;
 
-    auto* args = new std::tuple<State, std::vector<State>, const ListOfPairs*>{ state, solutions, &listOfPairs };
-    pthread_t thread;
-    pthread_create(&thread, NULL, searchHelper, args);
-    pthread_join(thread, NULL);
-
-    //search(state, solutions,listOfPairs);
-    if (solutions.empty()){
+    auto solution = search(state, solutions, listOfPairs);
+    if (solution.current.empty()){
         return "IMPOSSIBLE";
     }
 
     // need to sort and select in alphabetical order
     std::vector<std::string> concatenatedSolutions;
-    for(auto const& solution : solutions){
-        std::string concatenatedSolution;
-        for(int index : solution.current) {
-            concatenatedSolution += listOfPairs[index].first;
-        }
-        concatenatedSolutions.emplace_back(concatenatedSolution);
+    std::string concatenatedSolution;
+    for(int index : solution.current) {
+        concatenatedSolution += listOfPairs[index].first;
     }
+    concatenatedSolutions.emplace_back(concatenatedSolution);
     if(solutions.size() == 1) {
         return concatenatedSolutions[0];
     }
@@ -207,7 +176,7 @@ std::vector<std::string> solveEmilPuzzle(const std::vector<std::vector<std::pair
 }
 
 int main(int argc, char** argv) {
-    
+
     std::vector<std::vector<std::pair<std::string,std::string>>> listOfGroupsOfPairs;
     std::string inputString;
 
@@ -237,6 +206,6 @@ int main(int argc, char** argv) {
     for(const auto& solution : solutions) {
         std::cout << "Case " << caseNumber++ << ": " << solution << "\n";
     }
-    
+
     return 0;
 }
