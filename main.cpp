@@ -1,13 +1,11 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <utility>
 #include <algorithm>
-#include <sstream>
 #include <numeric>
-#include <future>
+#include <memory>
 #include <thread>
-#include <execution>
+#include <mutex>
 
 struct State{
     std::vector<int> current;
@@ -15,9 +13,7 @@ struct State{
 
 using ListOfPairs = std::vector<std::pair<std::string,std::string>>;
 
-std::recursive_mutex mtx;
-
-std::pair<std::string,std::string> splitString(const std::string& input, char delimiter){
+std::pair<std::string,std::string> splitString(const std::string& input, char delimiter) {
     auto pos = input.find(delimiter);
     auto fisrt = input.substr(0, pos);
     auto second = input.substr( pos + 1, input.size() - 1);
@@ -102,9 +98,9 @@ std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
     }
 
     std::vector<int> potentialCandidates, a(listOfPairs.size());
-
+        
     std::iota(a.begin(), a.end(), 0);
-
+    
     for(int i : a) {
         auto it = std::find(state.current.begin(),state.current.end(),i);
         if(it == state.current.end()){
@@ -116,42 +112,48 @@ std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
 
     return candidates;
 }
+void search(State state, std::shared_ptr<std::vector<State>> solutions, const ListOfPairs& listOfPairs,std::recursive_mutex& solutions_mutex) {
 
-State search(State state, std::vector<State> &solutions, const ListOfPairs& listOfPairs) {
-
-    if(isValidState(state, listOfPairs)){
-        return state;
+    if(isValidState(state, listOfPairs)) {
+        std::lock_guard<std::recursive_mutex> lock(solutions_mutex);
+        solutions->emplace_back(state);
+        return;
     }
 
     auto candidates = getCandidates(state, listOfPairs);
-    std::vector<std::future<void>> futures;
-    for(auto& candidate : candidates){
-
-        state.current.push_back(candidate);
-        search(state, solutions, listOfPairs);
-        state.current.pop_back();
+    std::vector<std::thread> threads;
+    for(auto& candidate : candidates) {
+        State newState(state);
+        newState.current.push_back(candidate);
+        threads.emplace_back(search, newState, solutions, std::cref(listOfPairs), std::ref(solutions_mutex));
     }
 
+    for (auto& thread : threads) {
+        thread.join();
+    }
 }
 
 std::string solve(const ListOfPairs& listOfPairs) {
-
-    std::vector<State> solutions {};
+    
+    std::shared_ptr<std::vector<State>> solutions = std::make_shared<std::vector<State>>();
     State state;
 
-    auto solution = search(state, solutions, listOfPairs);
-    if (solution.current.empty()){
+    std::recursive_mutex recursive_mutex;
+    search(state, solutions, listOfPairs,recursive_mutex);
+    if (solutions->empty()){
         return "IMPOSSIBLE";
     }
 
     // need to sort and select in alphabetical order
     std::vector<std::string> concatenatedSolutions;
-    std::string concatenatedSolution;
-    for(int index : solution.current) {
-        concatenatedSolution += listOfPairs[index].first;
+    for(auto const& solution : *solutions){
+        std::string concatenatedSolution;
+        for(int index : solution.current) {
+            concatenatedSolution += listOfPairs[index].first;
+        }
+        concatenatedSolutions.emplace_back(concatenatedSolution);
     }
-    concatenatedSolutions.emplace_back(concatenatedSolution);
-    if(solutions.size() == 1) {
+    if(solutions->size() == 1) {
         return concatenatedSolutions[0];
     }
 
@@ -176,7 +178,7 @@ std::vector<std::string> solveEmilPuzzle(const std::vector<std::vector<std::pair
 }
 
 int main(int argc, char** argv) {
-
+    
     std::vector<std::vector<std::pair<std::string,std::string>>> listOfGroupsOfPairs;
     std::string inputString;
 
@@ -206,6 +208,6 @@ int main(int argc, char** argv) {
     for(const auto& solution : solutions) {
         std::cout << "Case " << caseNumber++ << ": " << solution << "\n";
     }
-
+    
     return 0;
 }
