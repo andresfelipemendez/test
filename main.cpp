@@ -1,28 +1,35 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
+#include <utility>
 #include <algorithm>
+#include <sstream>
 #include <numeric>
-#include <memory>
-#include <thread>
+#include <vector>
 #include <mutex>
+#include <thread>
+#include <future>
 
-struct State{
-    std::vector<int> current;
+enum class SearchSide {
+    first,
+    second,
+    both,
+    neither
 };
 
-using ListOfPairs = std::vector<std::pair<std::string,std::string>>;
+using ListOfPairs = std::vector<std::pair<std::string, std::string>>;
 
-std::pair<std::string,std::string> splitString(const std::string& input, char delimiter) {
+std::pair<std::string, std::string> splitString(const std::string& input, char delimiter) {
     auto pos = input.find(delimiter);
-    auto fisrt = input.substr(0, pos);
-    auto second = input.substr( pos + 1, input.size() - 1);
-    return { fisrt, second };
+    auto first = input.substr(0, pos);
+    auto second = input.substr(pos + 1, input.size() - 1);
+    return { first, second };
 }
 
-bool isValidState(const State& state, const ListOfPairs& listOfPairs) {
+bool isValidState(const std::vector<int>& state, const ListOfPairs& listOfPairs) {
     std::string concatenatedLeft, concatenatedRight;
-    for(const int index : state.current){
+    for (const int index : state) {
         concatenatedLeft += listOfPairs[index].first;
         concatenatedRight += listOfPairs[index].second;
     }
@@ -31,80 +38,87 @@ bool isValidState(const State& state, const ListOfPairs& listOfPairs) {
     return areEqual && areNotEmpty;
 }
 
-std::vector<int> prune(const std::vector<int>& potentialCandidates, State& state, const ListOfPairs& listOfPairs) {
+bool compareSubsetString(const std::string& first,const std::string& second) {
+    if (first.size() == second.size())
+        return first == second;
+
+    std::string overlappingOppositeSubstring;
+    if(first.size() < second.size()){
+        overlappingOppositeSubstring = second.substr(0, first.size());
+        return overlappingOppositeSubstring == first;
+    }
+    else {
+        overlappingOppositeSubstring = first.substr(0, second.size());
+        return overlappingOppositeSubstring == second;
+    }
+}
+
+std::vector<int> prune(const std::vector<int>& potentialCandidates, std::vector<int>& state, const ListOfPairs& listOfPairs) {
     std::vector<int> candidates;
     std::string first, second;
-    for(int pairIndex : state.current){
+    for (int pairIndex : state) {
         first += listOfPairs[pairIndex].first;
         second += listOfPairs[pairIndex].second;
     }
-    // I need the "overlapping" substring to match in the next pair on the oppoite side
-    std::string overlappingSubstring;
-    int side = 0;
 
-    if(first.size() < second.size()) {
+    std::string overlappingSubstring;
+    SearchSide searchSide = SearchSide::neither;
+
+    if (first.size() < second.size()) {
         overlappingSubstring = second.substr(first.size(), second.size() - first.size());
-        side = 1;
-    } else if (first.size() > second.size()) {
+        searchSide = SearchSide::first;
+    }
+    else if (first.size() > second.size()) {
         overlappingSubstring = first.substr(second.size(), first.size() - second.size());
-        side = 2;
-    } else if (first.size() == second.size()){
-        overlappingSubstring = first;
-        side = 3;
+        searchSide = SearchSide::second;
+    }
+    else if (first.size() == second.size()) {
+        searchSide = SearchSide::both;
     }
 
-    for(int potentialCandidate : potentialCandidates) {
+    for (int potentialCandidate : potentialCandidates) {
         auto pair = listOfPairs[potentialCandidate];
-        if(side == 1) {
-            std::string overlappingOppositeSubstring = pair.first.substr(0, overlappingSubstring.size());
-            if(overlappingSubstring == overlappingOppositeSubstring)
-                candidates.emplace_back(potentialCandidate);
-        } else if (side == 2) {
-            std::string overlappingOppositeSubstring = pair.second.substr(0, overlappingSubstring.size());
-            if(overlappingSubstring == overlappingOppositeSubstring)
-                candidates.emplace_back(potentialCandidate);
-        } else if (side == 3 ) {
-            // check what string can fit the substring?
-            std::string overlappingOppositeSubstring = pair.second.substr(0, overlappingSubstring.size());
-            if(overlappingSubstring == overlappingOppositeSubstring)
-                candidates.emplace_back(potentialCandidate);
+        switch (searchSide) {
+            case SearchSide::first: {
+                if(compareSubsetString(pair.first, overlappingSubstring))
+                    candidates.push_back(potentialCandidate);
+            }
+                break;
+            case SearchSide::second: {
+                if(compareSubsetString(pair.second, overlappingSubstring))
+                    candidates.push_back(potentialCandidate);
+            }
+                break;
+            case SearchSide::both: {
+                if ( compareSubsetString(pair.first, pair.second))
+                    candidates.push_back(potentialCandidate);
+            }
+                break;
         }
     }
 
     return candidates;
 }
 
-bool compareSubsetString(const std::string& first, const std::string& second) {
-    if(first.size() == second.size())
-        return first == second;
-    const auto& shortestString = first.size() > second.size() ? second : first;
-    const auto& longestString = first.size() < second.size() ? second : first;
-    const auto subString = longestString.substr(0,shortestString.size());
-    return subString == shortestString;
-}
-
-std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
+std::vector<int> getCandidates(std::vector<int>& state, const ListOfPairs& listOfPairs) {
     std::vector<int> candidates;
 
-    if(state.current.empty()) {
-        for (int i = 0; i < listOfPairs.size(); ++i) {
-            const auto& pair = listOfPairs[i];
-
-            if(compareSubsetString(pair.first, pair.second)) {
-                candidates.emplace_back(i);
+    if (state.empty()) {
+        for (size_t i = 0; i < listOfPairs.size(); ++i) {
+            auto& pair = listOfPairs[i];
+            if (compareSubsetString(pair.first, pair.second)) {
+                candidates.push_back(i);
             }
         }
         return candidates;
     }
 
-    std::vector<int> potentialCandidates, a(listOfPairs.size());
-        
-    std::iota(a.begin(), a.end(), 0);
-    
-    for(int i : a) {
-        auto it = std::find(state.current.begin(),state.current.end(),i);
-        if(it == state.current.end()){
-            potentialCandidates.emplace_back(i);
+    std::vector<int> potentialCandidates;
+
+    for (size_t i = 0; i < listOfPairs.size(); ++i) {
+        auto it = std::find(state.begin(), state.end(), i);
+        if (it == state.end()) {
+            potentialCandidates.push_back(i);
         }
     }
 
@@ -112,64 +126,87 @@ std::vector<int> getCandidates(State& state, const ListOfPairs& listOfPairs) {
 
     return candidates;
 }
-void search(State state, std::shared_ptr<std::vector<State>> solutions, const ListOfPairs& listOfPairs,std::recursive_mutex& solutions_mutex) {
 
-    if(isValidState(state, listOfPairs)) {
-        std::lock_guard<std::recursive_mutex> lock(solutions_mutex);
-        solutions->emplace_back(state);
-        return;
+void serialSearch(std::vector<int> state, std::vector<std::vector<int>>& solutions, const ListOfPairs& listOfPairs)
+{
+    if (isValidState(state, listOfPairs))
+    {
+        solutions.emplace_back(state);
     }
 
     auto candidates = getCandidates(state, listOfPairs);
-    std::vector<std::thread> threads;
-    for(auto& candidate : candidates) {
-        State newState(state);
-        newState.current.push_back(candidate);
-        threads.emplace_back(search, newState, solutions, std::cref(listOfPairs), std::ref(solutions_mutex));
+    for (int candidate : candidates) {
+        state.push_back(candidate);
+        serialSearch(state, solutions, listOfPairs);
+        state.pop_back();
+    }
+}
+
+std::mutex mtx;
+
+void search(std::vector<int> state, std::vector<std::vector<int>>& solutions, const ListOfPairs& listOfPairs, std::mutex& solutions_mutex)
+{
+    if (isValidState(state, listOfPairs))
+    {
+        mtx.lock();
+        solutions.emplace_back(state);
+        mtx.unlock();
+    }
+    std::vector<std::future<void>> futures;
+
+    auto candidates = getCandidates(state, listOfPairs);
+    for (int candidate : candidates) {
+        state.push_back(candidate);
+        futures.emplace_back(std::async(std::launch::async, search, state, std::ref(solutions), std::cref(listOfPairs), std::ref(solutions_mutex)));
+        state.pop_back();
     }
 
-    for (auto& thread : threads) {
-        thread.join();
+    for (auto& future : futures) {
+        future.wait();
     }
 }
 
 std::string solve(const ListOfPairs& listOfPairs) {
-    
-    std::shared_ptr<std::vector<State>> solutions = std::make_shared<std::vector<State>>();
-    State state;
 
-    std::recursive_mutex recursive_mutex;
-    search(state, solutions, listOfPairs,recursive_mutex);
-    if (solutions->empty()){
+    std::vector<int> state;
+    std::vector<std::vector<int>> solutions{};
+    solutions.reserve(1000);
+    for (auto&solution : solutions) {
+        solution.reserve(1000);
+    }
+
+    std::mutex solutions_mutex;
+    search(state, solutions, listOfPairs,solutions_mutex);
+    if (solutions.empty()) {
         return "IMPOSSIBLE";
     }
 
-    // need to sort and select in alphabetical order
     std::vector<std::string> concatenatedSolutions;
-    for(auto const& solution : *solutions){
+    for (auto const& solution : solutions) {
         std::string concatenatedSolution;
-        for(int index : solution.current) {
+        for (int index : solution) {
             concatenatedSolution += listOfPairs[index].first;
         }
         concatenatedSolutions.emplace_back(concatenatedSolution);
     }
-    if(solutions->size() == 1) {
+    if (solutions.size() == 1) {
         return concatenatedSolutions[0];
     }
 
     std::sort(concatenatedSolutions.begin(), concatenatedSolutions.end(), [](auto a, auto b) {
-        return a.size() < b.size();
+        if (a.size() != b.size()) {
+            return a.size() < b.size();
+        }
+        return a < b;
     });
-    std::stable_sort(concatenatedSolutions.begin(), concatenatedSolutions.end());
+
     return concatenatedSolutions[0];
 }
 
-
-
-std::vector<std::string> solveEmilPuzzle(const std::vector<std::vector<std::pair<std::string,std::string>>>& processedInput) {
+std::vector<std::string> solveEmilPuzzle(const std::vector<std::vector<std::pair<std::string, std::string>>>& processedInput) {
     std::vector<std::string> solutions;
 
-    for(const auto& pairGroup : processedInput){
+    for (const auto& pairGroup : processedInput) {
         auto solution = solve(pairGroup);
         solutions.emplace_back(solution);
     }
@@ -177,25 +214,27 @@ std::vector<std::string> solveEmilPuzzle(const std::vector<std::vector<std::pair
     return solutions;
 }
 
+#ifndef UNIT_TESTING
 int main(int argc, char** argv) {
-    
-    std::vector<std::vector<std::pair<std::string,std::string>>> listOfGroupsOfPairs;
+    std::vector<std::vector<std::pair<std::string, std::string>>> listOfGroupsOfPairs;
     std::string inputString;
 
     std::string line;
     auto it = listOfGroupsOfPairs.begin();
     int numberOfPairs = 0;
-    while( std::cin) {
+    while (std::cin) {
         std::getline(std::cin, line);
-        if(numberOfPairs == 0 && !line.empty()) {
+        if (numberOfPairs == 0 && !line.empty()) {
             try {
                 numberOfPairs = std::stoi(line);
-            } catch (std::invalid_argument const& ex) {
+            }
+            catch (std::invalid_argument const& ex) {
                 break;
             }
             listOfGroupsOfPairs.emplace_back();
             it = listOfGroupsOfPairs.end() - 1;
-        } else if(!line.empty()){
+        }
+        else if (!line.empty()) {
             auto pair = splitString(line, ' ');
             it->emplace_back(pair);
             numberOfPairs--;
@@ -205,9 +244,10 @@ int main(int argc, char** argv) {
     auto solutions = solveEmilPuzzle(listOfGroupsOfPairs);
 
     int caseNumber = 1;
-    for(const auto& solution : solutions) {
+    for (const auto& solution : solutions) {
         std::cout << "Case " << caseNumber++ << ": " << solution << "\n";
     }
-    
+
     return 0;
 }
+#endif

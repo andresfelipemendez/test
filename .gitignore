@@ -3,3 +3,9 @@ cmake-build-debug-coverage
 */**/*.DS_Store
 src/.DS_Store
 .DS_Store
+cmake-build-debug-event-trace-coverage
+*.dSYM
+a.out
+cmake-build-debug-event-trace
+cmake-build-docker-valgrind
+.DS_Store

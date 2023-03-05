@@ -1,33 +1,20 @@
-cmake_minimum_required(VERSION 3.24)
-
-
+cmake_minimum_required(VERSION 3.16)
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mno-omit-leaf-frame-pointer")
 
-include(FetchContent)
+project(emil)
+add_executable(emil main.cpp)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/sample-01.in DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+
+Include(FetchContent)
 FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v3.0.1 # or a later release
 )
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+FetchContent_MakeAvailable(Catch2)
+find_package(Threads REQUIRED)
 
-project(hello_test)
-
-enable_testing()
-
-add_executable(
-        hello_test
-        src/hello_test.cc
-        src/backtrack.h)
-target_link_libraries(
-        hello_test
-        GTest::gtest_main
-)
-
-include(GoogleTest)
-gtest_discover_tests(hello_test)
+project(tests)
+add_executable(tests test.cpp)
+target_link_libraries(tests PRIVATE Catch2::Catch2WithMain Threads::Threads)
